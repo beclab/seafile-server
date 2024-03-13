@@ -1,5 +1,6 @@
 #include "common.h"
 
+#ifdef HAVE_EVHTP
 #define DEBUG_FLAG SEAFILE_DEBUG_HTTP
 #include "log.h"
 
@@ -2717,3 +2718,4 @@ upload_file_init (evhtp_t *htp, const char *http_temp_dir)
 
     return 0;
 }
+#endif
