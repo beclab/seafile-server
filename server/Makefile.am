@@ -70,6 +70,7 @@ seaf_server_SOURCES = \
 	../common/obj-store.c \
 	../common/obj-backend-fs.c \
 	../common/seafile-crypt.c \
+	../common/password-hash.c \
 	../common/diff-simple.c \
 	../common/mq-mgr.c \
 	../common/user-mgr.c \
@@ -87,4 +88,4 @@ seaf_server_LDADD = $(top_builddir)/lib/libseafile_common.la \
 	@SEARPC_LIBS@ @JANSSON_LIBS@ ${LIB_WS32} @ZLIB_LIBS@ \
 	@LIBARCHIVE_LIBS@ @LIB_ICONV@ \
 	@LDAP_LIBS@ @MYSQL_LIBS@ @LIBPQ_LIBS@ -lsqlite3 \
-	@CURL_LIBS@ @JWT_LIBS@
+	@CURL_LIBS@ @JWT_LIBS@ @ARGON2_LIBS@
