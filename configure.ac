@@ -328,6 +328,7 @@ AC_CONFIG_FILES(
     controller/Makefile
     tools/Makefile
     doc/Makefile
+    scripts/Makefile
 )
 
 AC_OUTPUT
