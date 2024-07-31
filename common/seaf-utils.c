@@ -25,7 +25,7 @@ seafile_session_get_tmp_file_path (SeafileSession *session,
     return path;
 }
 
-#define DEFAULT_MAX_CONNECTIONS 100
+#define DEFAULT_MAX_CONNECTIONS 400
 
 #define SQLITE_DB_NAME "seafile.db"
 #define CCNET_DB "ccnet.db"

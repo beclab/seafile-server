@@ -11,7 +11,7 @@
 #include "utils.h"
 #include "log.h"
 
-#define DEFAULT_MAX_CONNECTIONS 100
+#define DEFAULT_MAX_CONNECTIONS 400
 
 struct _CcnetGroupManagerPriv {
     CcnetDB	*db;
