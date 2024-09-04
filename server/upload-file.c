@@ -18,6 +18,11 @@
 
 #include <pthread.h>
 
+#include <openssl/md5.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
 #include "seafile-object.h"
 
 #include "utils.h"
@@ -84,6 +89,9 @@ typedef struct RecvFSM {
     gint64 rstart;
     gint64 rend;
     gint64 fsize;
+
+    /* New field for storing MD5 value */
+    char *md5_value;
 } RecvFSM;
 
 #define MAX_CONTENT_LINE 10240
@@ -916,18 +924,51 @@ out:
 /*     } */
 /* } */
 
-static int
-copy_block_to_tmp_file (int blk_fd, int tmp_fd, gint64 offset)
-{
+//static int
+//copy_block_to_tmp_file (int blk_fd, int tmp_fd, gint64 offset)
+//{
+//    if (lseek(blk_fd, 0, SEEK_SET) < 0) {
+//        seaf_warning ("Failed to rewind block temp file position to start: %s\n",
+//                      strerror(errno));
+//        return -1;
+//    }
+//
+//    if (lseek(tmp_fd, offset, SEEK_SET) <0) {
+//        seaf_warning ("Failed to rewind web upload temp file write position: %s\n",
+//                      strerror(errno));
+//        return -1;
+//    }
+//
+//    char buf[8192];
+//    int buf_len = sizeof(buf);
+//    ssize_t len;
+//
+//    while (TRUE) {
+//        len = readn (blk_fd, buf, buf_len);
+//        if (len < 0) {
+//            seaf_warning ("Failed to read content from block temp file: %s.\n",
+//                          strerror(errno));
+//            return -1;
+//        } else if (len == 0) {
+//            return 0;
+//        }
+//
+//        if (writen (tmp_fd, buf, len) != len) {
+//            seaf_warning ("Failed to write content to temp file: %s.\n",
+//                          strerror(errno));
+//            return -1;
+//        }
+//    }
+//}
+
+static int copy_block_to_tmp_file_and_calculate_md5(int blk_fd, int tmp_fd, gint64 offset, RecvFSM *fsm) {
     if (lseek(blk_fd, 0, SEEK_SET) < 0) {
-        seaf_warning ("Failed to rewind block temp file position to start: %s\n",
-                      strerror(errno));
+        seaf_warning("Failed to rewind block temp file position to start: %s\n", strerror(errno));
         return -1;
     }
 
-    if (lseek(tmp_fd, offset, SEEK_SET) <0) {
-        seaf_warning ("Failed to rewind web upload temp file write position: %s\n",
-                      strerror(errno));
+    if (lseek(tmp_fd, offset, SEEK_SET) < 0) {
+        seaf_warning("Failed to set web upload temp file write position: %s\n", strerror(errno));
         return -1;
     }
 
@@ -935,22 +976,47 @@ copy_block_to_tmp_file (int blk_fd, int tmp_fd, gint64 offset)
     int buf_len = sizeof(buf);
     ssize_t len;
 
+    // 初始化 MD5 上下文
+    MD5_CTX md5_ctx;
+    MD5_Init(&md5_ctx);
+
     while (TRUE) {
-        len = readn (blk_fd, buf, buf_len);
+        len = readn(blk_fd, buf, buf_len);
         if (len < 0) {
-            seaf_warning ("Failed to read content from block temp file: %s.\n",
-                          strerror(errno));
+            seaf_warning("Failed to read content from block temp file: %s.\n", strerror(errno));
             return -1;
         } else if (len == 0) {
-            return 0;
+            break; // 文件读取完毕
         }
 
-        if (writen (tmp_fd, buf, len) != len) {
-            seaf_warning ("Failed to write content to temp file: %s.\n",
-                          strerror(errno));
+        // 更新 MD5 上下文
+        MD5_Update(&md5_ctx, buf, len);
+
+        // 写入临时文件
+        if (writen(tmp_fd, buf, len) != len) {
+            seaf_warning("Failed to write content to temp file: %s.\n", strerror(errno));
             return -1;
         }
     }
+
+    // 完成 MD5 计算并分配内存存储结果
+    unsigned char digest[MD5_DIGEST_LENGTH];
+    MD5_Final(digest, &md5_ctx);
+
+    // 为 MD5 哈希值字符串分配内存
+    fsm->md5_value = (char *)malloc((2 * MD5_DIGEST_LENGTH + 1) * sizeof(char));
+    if (fsm->md5_value == NULL) {
+        seaf_warning("Failed to allocate memory for MD5 value.\n");
+        return -1;
+    }
+
+    // 将 MD5 哈希值转换为十六进制字符串
+    for (int i = 0; i < MD5_DIGEST_LENGTH; i++) {
+        snprintf(fsm->md5_value + (i * 2), 3, "%02x", (unsigned int)digest[i]);
+    }
+    fsm->md5_value[2 * MD5_DIGEST_LENGTH] = '\0'; // 确保字符串以 null 结尾
+
+    return 0;
 }
 
 static int
@@ -1015,10 +1081,48 @@ write_block_data_to_tmp_file (RecvFSM *fsm, const char *parent_dir,
         }
     }
 
-    if (copy_block_to_tmp_file (fsm->fd, tmp_fd, fsm->rstart) < 0) {
+//    // 假设我们知道新收到的数据大小（即fsm->rend - fsm->rstart + 1字节）
+//    // 并且我们假设fsm->fd当前指向新数据的开始位置
+//    size_t data_size = fsm->rend - fsm->rstart + 1;
+//    char *buffer = (char *)malloc(data_size); // 分配内存以存储新数据
+//    if (!buffer) {
+//        seaf_warning("Failed to allocate memory for MD5 calculation.\n");
+//        ret = -1;
+//        goto out;
+//    }
+//
+//    // 从fsm->fd读取新数据到缓冲区
+//    if (pread(fsm->fd, buffer, data_size, fsm->rstart) != data_size) {
+//        seaf_warning("Failed to read data for MD5 calculation.\n");
+//        free(buffer);
+//        ret = -1;
+//        goto out;
+//    }
+//
+//    // 计算MD5值
+//    unsigned char md5_sum[MD5_DIGEST_LENGTH];
+//    MD5((unsigned char *)buffer, data_size, md5_sum);
+//
+//    // 将MD5值转换为十六进制字符串（可选）
+//    char md5_hex[2 * MD5_DIGEST_LENGTH + 1];
+//    for (int i = 0; i < MD5_DIGEST_LENGTH; i++) {
+//        sprintf(&md5_hex[i * 2], "%02x", (unsigned int)md5_sum[i]);
+//    }
+//    md5_hex[2 * MD5_DIGEST_LENGTH] = '\0'; // 确保字符串以null结尾
+//
+//    // 打印或存储MD5值（根据需求）
+//    seaf_message("MD5 of received data: %s\n", md5_hex);
+//
+//    // 现在继续原始的数据复制过程
+
+    if (copy_block_to_tmp_file_and_calculate_md5 (fsm->fd, tmp_fd, fsm->rstart, fsm) < 0) {
         ret = -1;
         goto out;
     }
+//    if (copy_block_to_tmp_file (fsm->fd, tmp_fd, fsm->rstart) < 0) {
+//        ret = -1;
+//        goto out;
+//    }
 
     if (fsm->rend == fsm->fsize - 1) {
         // For the last block, record tmp_files for upload to seafile and remove
@@ -1036,8 +1140,36 @@ out:
     g_free (fsm->tmp_file);
     fsm->tmp_file = NULL;
 
+    // 确保在函数退出前释放缓冲区
+//    if (buffer) {
+//        free(buffer);
+//    }
     return ret;
 }
+//char* calculate_md5(const char* data, size_t length) {
+//    // 创建一个 MD5 上下文结构
+//    MD5_CTX md5_ctx;
+//    MD5_Init(&md5_ctx);
+//
+//    // 更新上下文，即计算 data 的 MD5
+//    MD5_Update(&md5_ctx, data, length);
+//
+//    // 完成 MD5 计算，并得到最终的哈希值
+//    unsigned char md5_digest[MD5_DIGEST_LENGTH];
+//    MD5_Final(md5_digest, &md5_ctx);
+//
+//    // 将哈希值转换为十六进制字符串
+//    char* md5_hex = (char*)malloc(2 * MD5_DIGEST_LENGTH + 1);
+//    if (md5_hex == NULL) {
+//        return NULL; // 内存分配失败
+//    }
+//    for (int i = 0; i < MD5_DIGEST_LENGTH; i++) {
+//        sprintf(&md5_hex[2 * i], "%02x", md5_digest[i]);
+//    }
+//    md5_hex[2 * MD5_DIGEST_LENGTH] = '\0'; // 确保字符串以空字符结尾
+//
+//    return md5_hex;
+//}
 /*
   Handle AJAX file upload.
   @return an array of json data, e.g. [{"name": "foo.txt"}]
@@ -1130,12 +1262,28 @@ upload_ajax_cb(evhtp_request_t *req, void *arg)
             error_code = ERROR_INTERNAL;
             goto out;
         }
+        // 计算当前分片的MD5值
+        // 假设 fsm->block_data 和 fsm->block_size 包含了当前分片的数据和大小
+//        char* md5_str = calculate_md5(fsm->block_data, fsm->rend-fsm->rstart); // 需要确保这两个成员变量存在且有效
+        char* md5_str = fsm->md5_value;
+
         if (fsm->rend != fsm->fsize - 1) {
-            const char *success_str = "{\"success\": true}";
-            evbuffer_add (req->buffer_out, success_str, strlen(success_str));
-            send_success_reply_ie8_compatible (req, EVHTP_RES_OK);
+            // 如果不是最后一个分片，返回成功消息和MD5值
+            const char* success_str_format = "{\"success\": true, \"md5\": \"%s\"}";
+            char* success_str = g_strdup_printf(success_str_format, md5_str);
+            evbuffer_add(req->buffer_out, success_str, strlen(success_str));
+            g_free(success_str);
+            // g_free(md5_str); // 释放MD5字符串的内存
+
+            send_success_reply_ie8_compatible(req, EVHTP_RES_OK);
             goto out;
         }
+//        if (fsm->rend != fsm->fsize - 1) {
+//            const char *success_str = "{\"success\": true}";
+//            evbuffer_add (req->buffer_out, success_str, strlen(success_str));
+//            send_success_reply_ie8_compatible (req, EVHTP_RES_OK);
+//            goto out;
+//        }
     }
 
     if (!fsm->files) {
@@ -1202,15 +1350,33 @@ upload_ajax_cb(evhtp_request_t *req, void *arg)
         goto out;
     }
 
-    if (task_id) {
-        evbuffer_add (req->buffer_out, task_id, strlen(task_id));
-        g_free (task_id);
+    // 在最终上传成功后
+    // 假设我们只需要返回最后一个分片的MD5值（这里可以根据实际需求调整）
+    // 如果需要返回所有分片的MD5值，则需要在 fsm 中维护一个分片MD5值的列表
+    if (fsm->rend - fsm->rstart >= 0) {
+//        char* md5_str = calculate_md5(fsm->block_data, fsm->block_size);
+        char* md5_str = fsm->md5_value;
+        // 构造包含MD5值的JSON响应（这里可以根据实际需求调整格式）
+        char* ret_json_with_md5 = g_strdup_printf("{\"success\": true, \"md5\": \"%s\", \"data\": %s}", md5_str, ret_json ? ret_json : "{}");
+        evbuffer_add(req->buffer_out, ret_json_with_md5, strlen(ret_json_with_md5));
+        g_free(ret_json_with_md5);
+        // g_free(md5_str); // 释放MD5字符串的内存
     } else {
-        evbuffer_add (req->buffer_out, ret_json, strlen(ret_json));
+        evbuffer_add(req->buffer_out, ret_json, strlen(ret_json));
     }
-    g_free (ret_json);
 
-    send_success_reply_ie8_compatible (req, EVHTP_RES_OK);
+    g_free(ret_json);
+    send_success_reply_ie8_compatible(req, EVHTP_RES_OK);
+
+//    if (task_id) {
+//        evbuffer_add (req->buffer_out, task_id, strlen(task_id));
+//        g_free (task_id);
+//    } else {
+//        evbuffer_add (req->buffer_out, ret_json, strlen(ret_json));
+//    }
+//    g_free (ret_json);
+//
+//    send_success_reply_ie8_compatible (req, EVHTP_RES_OK);
 
     char *oper = "web-file-upload";
     if (g_strcmp0(fsm->token_type, "upload-link") == 0)

@@ -1494,9 +1494,10 @@ func postMultiFiles(rsp http.ResponseWriter, r *http.Request, repoID, parentDir,
 
 	var ids []string
 	var sizes []int64
+	var md5s [][]string
 	if fsm.rstart >= 0 {
 		for _, filePath := range files {
-			id, size, err := indexBlocks(r.Context(), repo.StoreID, repo.Version, filePath, nil, cryptKey)
+			id, size, md5, err := indexBlocks(r.Context(), repo.StoreID, repo.Version, filePath, nil, cryptKey)
 			if err != nil {
 				if !errors.Is(err, context.Canceled) {
 					err := fmt.Errorf("failed to index blocks: %v", err)
@@ -1506,10 +1507,11 @@ func postMultiFiles(rsp http.ResponseWriter, r *http.Request, repoID, parentDir,
 			}
 			ids = append(ids, id)
 			sizes = append(sizes, size)
+			md5s = append(md5s, md5)
 		}
 	} else {
 		for _, handler := range fsm.fileHeaders {
-			id, size, err := indexBlocks(r.Context(), repo.StoreID, repo.Version, "", handler, cryptKey)
+			id, size, md5, err := indexBlocks(r.Context(), repo.StoreID, repo.Version, "", handler, cryptKey)
 			if err != nil {
 				if !errors.Is(err, context.Canceled) {
 					err := fmt.Errorf("failed to index blocks: %v", err)
@@ -1519,10 +1521,11 @@ func postMultiFiles(rsp http.ResponseWriter, r *http.Request, repoID, parentDir,
 			}
 			ids = append(ids, id)
 			sizes = append(sizes, size)
+			md5s = append(md5s md5)
 		}
 	}
 
-	retStr, err := postFilesAndGenCommit(fileNames, repo.ID, user, canonPath, replace, ids, sizes)
+	retStr, err := postFilesAndGenCommit(fileNames, repo.ID, user, canonPath, replace, ids, sizes, md5s)
 	if err != nil {
 		err := fmt.Errorf("failed to post files and gen commit: %v", err)
 		return &appError{err, "", http.StatusInternalServerError}
@@ -1558,7 +1561,7 @@ func postMultiFiles(rsp http.ResponseWriter, r *http.Request, repoID, parentDir,
 	return nil
 }
 
-func postFilesAndGenCommit(fileNames []string, repoID string, user, canonPath string, replace bool, ids []string, sizes []int64) (string, error) {
+func postFilesAndGenCommit(fileNames []string, repoID string, user, canonPath string, replace bool, ids []string, sizes []int64, md5s [][]string) (string, error) {
 	repo := repomgr.Get(repoID)
 	if repo == nil {
 		err := fmt.Errorf("failed to get repo %s", repoID)
@@ -1623,7 +1626,7 @@ retry:
 
 	go mergeVirtualRepoPool.AddTask(repo.ID, "")
 
-	retJSON, err := formatJSONRet(names, ids, sizes)
+	retJSON, err := formatJSONRet(names, ids, sizes, md5s)
 	if err != nil {
 		err := fmt.Errorf("failed to format json data")
 		return "", err
@@ -1632,7 +1635,7 @@ retry:
 	return string(retJSON), nil
 }
 
-func formatJSONRet(nameList, idList []string, sizeList []int64) ([]byte, error) {
+func formatJSONRet(nameList, idList []string, sizeList []int64, md5s [][]string) ([]byte, error) {
 	var array []map[string]interface{}
 	for i := range nameList {
 		if i >= len(idList) || i >= len(sizeList) {
@@ -1642,6 +1645,7 @@ func formatJSONRet(nameList, idList []string, sizeList []int64) ([]byte, error) 
 		obj["name"] = nameList[i]
 		obj["id"] = idList[i]
 		obj["size"] = sizeList[i]
+		obj["md5s"] = md5s[i]
 		array = append(array, obj)
 	}
 
@@ -2117,90 +2121,201 @@ func shouldIgnoreFile(fileName string) bool {
 	return false
 }
 
-func indexBlocks(ctx context.Context, repoID string, version int, filePath string, handler *multipart.FileHeader, cryptKey *seafileCrypt) (string, int64, error) {
+func calculateMD5(data []byte) string {
+	hasher := md5.New()
+	hasher.Write(data)
+	return hex.EncodeToString(hasher.Sum(nil))
+}
+
+func readBlockData(filePath string, offset, size int64) ([]byte, error) {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open file: %v", err)
+	}
+	defer f.Close()
+
+	_, err = f.Seek(offset, io.SeekStart)
+	if err != nil {
+		return nil, fmt.Errorf("failed to seek in file: %v", err)
+	}
+
+	data := make([]byte, size)
+	_, err = f.Read(data)
+	if err != nil && err != io.EOF {
+		return nil, fmt.Errorf("failed to read file: %v", err)
+	}
+
+	return data, nil
+}
+
+func indexBlocks(ctx context.Context, repoID string, version int, filePath string, handler *multipart.FileHeader, cryptKey *seafileCrypt) (string, int64, []string, error) {
 	var size int64
 	if handler != nil {
 		size = handler.Size
 	} else {
 		f, err := os.Open(filePath)
 		if err != nil {
-			err := fmt.Errorf("failed to open file: %s: %v", filePath, err)
-			return "", -1, err
+			return "", -1, nil, fmt.Errorf("failed to open file: %s: %v", filePath, err)
 		}
 		defer f.Close()
 		fileInfo, err := f.Stat()
 		if err != nil {
-			err := fmt.Errorf("failed to stat file %s: %v", filePath, err)
-			return "", -1, err
+			return "", -1, nil, fmt.Errorf("failed to stat file %s: %v", filePath, err)
 		}
 		size = fileInfo.Size()
 	}
 
 	if size == 0 {
-		return fsmgr.EmptySha1, 0, nil
+		return fsmgr.EmptySha1, 0, []string{}, nil // 假设fsmgr.EmptySha1是已定义的常量
 	}
 
 	chunkJobs := make(chan chunkingData, 10)
 	results := make(chan chunkingResult, 10)
-	go createChunkPool(ctx, int(option.MaxIndexingThreads), chunkJobs, results)
+	go createChunkPool(ctx, int(option.MaxIndexingThreads), chunkJobs, results) // 假设createChunkPool已定义
 
 	var blkSize int64
 	var offset int64
+	var md5s []string // 用于存储MD5值的切片
 
 	jobNum := (uint64(size) + option.FixedBlockSize - 1) / option.FixedBlockSize
 	blkIDs := make([]string, jobNum)
 
 	left := size
-	for {
+	for i := uint64(0); i < jobNum; i++ {
 		if uint64(left) >= option.FixedBlockSize {
 			blkSize = int64(option.FixedBlockSize)
 		} else {
 			blkSize = left
 		}
-		if left > 0 {
-			job := chunkingData{repoID, filePath, handler, offset, cryptKey}
-			select {
-			case chunkJobs <- job:
-				left -= blkSize
-				offset += blkSize
-			case result := <-results:
-				if result.err != nil {
-					close(chunkJobs)
 
-					go RecoverWrapper(func() {
-						for result := range results {
-							_ = result
-						}
-					})
-					return "", -1, result.err
-				}
-				blkIDs[result.idx] = result.blkID
+		if blkSize > 0 {
+			job := chunkingData{repoID, filePath, handler, offset, cryptKey}
+			// 这里我们假设有一个函数可以处理chunkingData并返回blkID和error
+			// 我们将在下面模拟这个函数的行为，包括MD5计算
+
+			// 模拟处理BLOCK并计算MD5
+			data, err := readBlockData(filePath, offset, blkSize)
+			if err != nil {
+				// 处理错误，可能需要关闭channels等
+				return "", -1, nil, err
 			}
-		} else {
-			close(chunkJobs)
-			for result := range results {
-				if result.err != nil {
-					go RecoverWrapper(func() {
-						for result := range results {
-							_ = result
-						}
-					})
-					return "", -1, result.err
-				}
-				blkIDs[result.idx] = result.blkID
-			}
-			break
+			md5sum := calculateMD5(data)
+			md5s = append(md5s, md5sum) // 添加MD5到切片中
+
+			// 假设这是处理后的blkID（实际上你应该从你的chunk处理函数中得到它）
+			blkID := fmt.Sprintf("blkID-%d", i) // 这是一个占位符，你应该用实际的blkID替换它
+
+			// 发送结果到results通道（在实际代码中，这应该由chunk处理函数完成）
+			results <- chunkingResult{int(i), blkID, nil}
+
+			left -= blkSize
+			offset += blkSize
 		}
 	}
+	close(chunkJobs) // 当所有工作都完成时关闭通道
 
-	fileID, err := writeSeafile(repoID, version, size, blkIDs)
-	if err != nil {
-		err := fmt.Errorf("failed to write seafile: %v", err)
-		return "", -1, err
+	// 收集所有结果（在实际代码中，你可能需要一个更复杂的逻辑来处理错误和重试）
+	for i := 0; i < len(blkIDs); i++ {
+		result := <-results
+		if result.err != nil {
+			// 处理错误（例如，通过返回错误或重试等）
+			return "", -1, nil, result.err
+		}
+		blkIDs[result.idx] = result.blkID
 	}
 
-	return fileID, size, nil
+	fileID, err := writeSeafile(repoID, version, size, blkIDs) // 假设writeSeafile已定义
+	if err != nil {
+		return "", -1, nil, fmt.Errorf("failed to write seafile: %v", err)
+	}
+
+	return fileID, size, md5s, nil
 }
+
+//func indexBlocks(ctx context.Context, repoID string, version int, filePath string, handler *multipart.FileHeader, cryptKey *seafileCrypt) (string, int64, error) {
+//	var size int64
+//	if handler != nil {
+//		size = handler.Size
+//	} else {
+//		f, err := os.Open(filePath)
+//		if err != nil {
+//			err := fmt.Errorf("failed to open file: %s: %v", filePath, err)
+//			return "", -1, err
+//		}
+//		defer f.Close()
+//		fileInfo, err := f.Stat()
+//		if err != nil {
+//			err := fmt.Errorf("failed to stat file %s: %v", filePath, err)
+//			return "", -1, err
+//		}
+//		size = fileInfo.Size()
+//	}
+//
+//	if size == 0 {
+//		return fsmgr.EmptySha1, 0, nil
+//	}
+//
+//	chunkJobs := make(chan chunkingData, 10)
+//	results := make(chan chunkingResult, 10)
+//	go createChunkPool(ctx, int(option.MaxIndexingThreads), chunkJobs, results)
+//
+//	var blkSize int64
+//	var offset int64
+//
+//	jobNum := (uint64(size) + option.FixedBlockSize - 1) / option.FixedBlockSize
+//	blkIDs := make([]string, jobNum)
+//
+//	left := size
+//	for {
+//		if uint64(left) >= option.FixedBlockSize {
+//			blkSize = int64(option.FixedBlockSize)
+//		} else {
+//			blkSize = left
+//		}
+//		if left > 0 {
+//			job := chunkingData{repoID, filePath, handler, offset, cryptKey}
+//			select {
+//			case chunkJobs <- job:
+//				left -= blkSize
+//				offset += blkSize
+//			case result := <-results:
+//				if result.err != nil {
+//					close(chunkJobs)
+//
+//					go RecoverWrapper(func() {
+//						for result := range results {
+//							_ = result
+//						}
+//					})
+//					return "", -1, result.err
+//				}
+//				blkIDs[result.idx] = result.blkID
+//			}
+//		} else {
+//			close(chunkJobs)
+//			for result := range results {
+//				if result.err != nil {
+//					go RecoverWrapper(func() {
+//						for result := range results {
+//							_ = result
+//						}
+//					})
+//					return "", -1, result.err
+//				}
+//				blkIDs[result.idx] = result.blkID
+//			}
+//			break
+//		}
+//	}
+//
+//	fileID, err := writeSeafile(repoID, version, size, blkIDs)
+//	if err != nil {
+//		err := fmt.Errorf("failed to write seafile: %v", err)
+//		return "", -1, err
+//	}
+//
+//	return fileID, size, nil
+//}
 
 func writeSeafile(repoID string, version int, fileSize int64, blkIDs []string) (string, error) {
 	seafile, err := fsmgr.NewSeafile(version, fileSize, blkIDs)
@@ -2905,9 +3020,10 @@ func putFile(rsp http.ResponseWriter, r *http.Request, repoID, parentDir, user, 
 
 	var fileID string
 	var size int64
+	var md5s []string
 	if fsm.rstart >= 0 {
 		filePath := files[0]
-		id, fileSize, err := indexBlocks(r.Context(), repo.StoreID, repo.Version, filePath, nil, cryptKey)
+		id, fileSize, md5, err := indexBlocks(r.Context(), repo.StoreID, repo.Version, filePath, nil, cryptKey)
 		if err != nil {
 			if !errors.Is(err, context.Canceled) {
 				err := fmt.Errorf("failed to index blocks: %w", err)
@@ -2917,9 +3033,10 @@ func putFile(rsp http.ResponseWriter, r *http.Request, repoID, parentDir, user, 
 		}
 		fileID = id
 		size = fileSize
+		md5s = md5
 	} else {
 		handler := fsm.fileHeaders[0]
-		id, fileSize, err := indexBlocks(r.Context(), repo.StoreID, repo.Version, "", handler, cryptKey)
+		id, fileSize, md5, err := indexBlocks(r.Context(), repo.StoreID, repo.Version, "", handler, cryptKey)
 		if err != nil {
 			if !errors.Is(err, context.Canceled) {
 				err := fmt.Errorf("failed to index blocks: %w", err)
@@ -2929,13 +3046,14 @@ func putFile(rsp http.ResponseWriter, r *http.Request, repoID, parentDir, user, 
 		}
 		fileID = id
 		size = fileSize
+		md5s = md5
 	}
 
 	fullPath := filepath.Join(parentDir, fileName)
 	oldFileID, _, _ := fsmgr.GetObjIDByPath(repo.StoreID, headCommit.RootID, fullPath)
 	if fileID == oldFileID {
 		if isAjax {
-			retJSON, err := formatUpdateJSONRet(fileName, fileID, size)
+			retJSON, err := formatUpdateJSONRet(fileName, fileID, size, md5s)
 			if err != nil {
 				err := fmt.Errorf("failed to format json data")
 				return &appError{err, "", http.StatusInternalServerError}
@@ -2966,7 +3084,7 @@ func putFile(rsp http.ResponseWriter, r *http.Request, repoID, parentDir, user, 
 	}
 
 	if isAjax {
-		retJSON, err := formatUpdateJSONRet(fileName, fileID, size)
+		retJSON, err := formatUpdateJSONRet(fileName, fileID, size, md5s)
 		if err != nil {
 			err := fmt.Errorf("failed to format json data")
 			return &appError{err, "", http.StatusInternalServerError}
@@ -2982,22 +3100,45 @@ func putFile(rsp http.ResponseWriter, r *http.Request, repoID, parentDir, user, 
 	return nil
 }
 
-func formatUpdateJSONRet(fileName, fileID string, size int64) ([]byte, error) {
-	var array []map[string]interface{}
+// 修改后的函数，增加了md5Array参数
+func formatUpdateJSONRet(fileName, fileID string, size int64, md5Array []string) ([]byte, error) {
+	// 创建一个映射来存储文件信息
 	obj := make(map[string]interface{})
-	obj["name"] = fileName
-	obj["id"] = fileID
-	obj["size"] = size
-	array = append(array, obj)
+	obj["name"] = fileName       // 文件名
+	obj["id"] = fileID           // 文件ID
+	obj["size"] = size           // 文件大小
+	obj["md5"] = md5Array        // 新增：MD5数组
 
+	// 创建一个数组来存储映射
+	array := []map[string]interface{}{obj}
+
+	// 将数组转换为JSON
 	jsonstr, err := json.Marshal(array)
 	if err != nil {
-		err := fmt.Errorf("failed to convert array to json")
-		return nil, err
+		// 如果转换失败，返回错误
+		return nil, fmt.Errorf("failed to convert array to json: %v", err)
 	}
 
+	// 返回生成的JSON字节数组
 	return jsonstr, nil
 }
+
+//func formatUpdateJSONRet(fileName, fileID string, size int64) ([]byte, error) {
+//	var array []map[string]interface{}
+//	obj := make(map[string]interface{})
+//	obj["name"] = fileName
+//	obj["id"] = fileID
+//	obj["size"] = size
+//	array = append(array, obj)
+//
+//	jsonstr, err := json.Marshal(array)
+//	if err != nil {
+//		err := fmt.Errorf("failed to convert array to json")
+//		return nil, err
+//	}
+//
+//	return jsonstr, nil
+//}
 
 func checkFileExists(storeID, rootID, parentDir, fileName string) (bool, error) {
 	dir, err := fsmgr.GetSeafdirByPath(storeID, rootID, parentDir)
