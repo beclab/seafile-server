@@ -2073,7 +2073,7 @@ recv_file_data (RecvFSM *fsm, gboolean *no_line)
                 fsm->input_name = NULL;
                 fsm->state = RECV_HEADERS;
             } else {
-                seaf_debug ("[upload] recv file data %d bytes.\n", size);
+//                seaf_debug ("[upload] recv file data %d bytes.\n", size);
                 if (fsm->recved_crlf) {
                     if (writen (fsm->fd, "\r\n", 2) < 0) {
                         seaf_warning ("[upload] Failed to write temp file: %s.\n",
@@ -2106,7 +2106,7 @@ recv_file_data (RecvFSM *fsm, gboolean *no_line)
         fsm->state = RECV_HEADERS;
         free (line);
     } else {
-        seaf_debug ("[upload] recv file data %d bytes.\n", len + 2);
+//        seaf_debug ("[upload] recv file data %d bytes.\n", len + 2);
         if (fsm->recved_crlf) {
             if (writen (fsm->fd, "\r\n", 2) < 0) {
                 seaf_warning ("[upload] Failed to write temp file: %s.\n",
