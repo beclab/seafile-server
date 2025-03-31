@@ -14,6 +14,7 @@ AM_CFLAGS = -DPKGDATADIR=\"$(pkgdatadir)\" \
 	@LIBARCHIVE_CFLAGS@ \
 	@MYSQL_CFLAGS@ \
 	@LIBPQ_CFLAGS@ \
+	@LIBHIREDIS_CFLAGS@ \
 	-Wall
 
 bin_PROGRAMS = seaf-server
@@ -38,7 +39,8 @@ noinst_HEADERS = web-accesstoken-mgr.h  seafile-session.h \
 	index-blocks-mgr.h \
 	http-tx-mgr.h \
 	notif-mgr.h \
-	change-set.h
+	change-set.h \
+	metric-mgr.h
 
 seaf_server_SOURCES = \
 	seaf-server.c \
@@ -61,6 +63,7 @@ seaf_server_SOURCES = \
 	http-tx-mgr.c \
 	notif-mgr.c \
 	change-set.c \
+	metric-mgr.c \
 	../common/seaf-db.c \
 	../common/branch-mgr.c ../common/fs-mgr.c \
 	../common/config-mgr.c \
@@ -82,6 +85,8 @@ seaf_server_SOURCES = \
 	../common/block-backend.c \
 	../common/block-backend-fs.c \
 	../common/merge-new.c \
+	../common/obj-cache.c \
+	../common/redis-cache.c \
 	../common/block-tx-utils.c
 
 seaf_server_LDADD = $(top_builddir)/lib/libseafile_common.la \
@@ -90,4 +95,4 @@ seaf_server_LDADD = $(top_builddir)/lib/libseafile_common.la \
 	@SEARPC_LIBS@ @JANSSON_LIBS@ ${LIB_WS32} @ZLIB_LIBS@ \
 	@LIBARCHIVE_LIBS@ @LIB_ICONV@ \
 	@LDAP_LIBS@ @MYSQL_LIBS@ @LIBPQ_LIBS@ -lsqlite3 \
-	@CURL_LIBS@ @JWT_LIBS@ @ARGON2_LIBS@
+	@CURL_LIBS@ @JWT_LIBS@ @LIBHIREDIS_LIBS@ @ARGON2_LIBS@
