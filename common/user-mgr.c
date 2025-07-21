@@ -1575,6 +1575,7 @@ ccnet_user_manager_search_ldapusers (CcnetUserManager *manager,
 gint64
 ccnet_user_manager_count_emailusers (CcnetUserManager *manager, const char *source)
 {
+    printf("Someone call count emailusers");    // test wrx
     CcnetDB* db = manager->priv->db;
     char sql[512];
     gint64 ret;
@@ -1589,13 +1590,15 @@ ccnet_user_manager_count_emailusers (CcnetUserManager *manager, const char *sour
 #endif
 
     if (g_strcmp0 (source, "DB") != 0)
-        return -2;  // -1;  // test wrx
+        return -17;  // -1;  // test wrx
 
     snprintf (sql, 512, "SELECT COUNT(id) FROM EmailUser WHERE is_active = 1");
 
     ret = seaf_db_get_int64 (db, sql);
-    if (ret < 0)
-        return -2;  // -1;  // test wrx
+    if (ret < 0) {
+        printf("ret=%d", ret);  // test wrx
+        return -18;  // -1;  // test wrx
+    }
     return ret;
 }
 
