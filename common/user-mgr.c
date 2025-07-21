@@ -91,7 +91,7 @@ get_current_user_number (CcnetUserManager *manager)
     count = ccnet_user_manager_count_emailusers (manager, "DB");
     if (count < 0) {
         ccnet_warning ("Failed to get user number from DB.\n");
-        return -1;
+        return -3;  // -1;  // test wrx
     }
     total += count;
 
@@ -1589,13 +1589,13 @@ ccnet_user_manager_count_emailusers (CcnetUserManager *manager, const char *sour
 #endif
 
     if (g_strcmp0 (source, "DB") != 0)
-        return -1;
+        return -2;  // -1;  // test wrx
 
     snprintf (sql, 512, "SELECT COUNT(id) FROM EmailUser WHERE is_active = 1");
 
     ret = seaf_db_get_int64 (db, sql);
     if (ret < 0)
-        return -1;
+        return -2;  // -1;  // test wrx
     return ret;
 }
 
@@ -1616,13 +1616,13 @@ ccnet_user_manager_count_inactive_emailusers (CcnetUserManager *manager, const c
 #endif
 
     if (g_strcmp0 (source, "DB") != 0)
-        return -1;
+        return -2; // -1; // test_wrx
 
     snprintf (sql, 512, "SELECT COUNT(id) FROM EmailUser WHERE is_active = 0");
 
     ret = seaf_db_get_int64 (db, sql);
     if (ret < 0)
-        return -1;
+        return -2; // -1; // test_wrx
     return ret;
 }
 
