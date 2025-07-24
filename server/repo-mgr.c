@@ -3773,7 +3773,7 @@ create_repo_common (SeafRepoManager *mgr,
         if (!magic || strlen(magic) != 64) {
             seaf_warning ("Bad magic.\n");
             // by wrx begin
-            if magic {
+            if (magic) {
                 seaf_warning("Bad magic. magic=%s\n", magic);
             }
             // by wrx end
