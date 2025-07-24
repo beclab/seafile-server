@@ -3772,6 +3772,11 @@ create_repo_common (SeafRepoManager *mgr,
     if (enc_version >= 2) {
         if (!magic || strlen(magic) != 64) {
             seaf_warning ("Bad magic.\n");
+            // by wrx begin
+            if magic {
+                seaf_warning("Bad magic. magic=%s\n", magic);
+            }
+            // by wrx end
             g_set_error (error, SEAFILE_DOMAIN, SEAF_ERR_BAD_ARGS,
                          "Bad magic");
             return -1;
@@ -3883,12 +3888,16 @@ seaf_repo_manager_create_new_repo (SeafRepoManager *mgr,
     }
 
     int rc;
-    if (passwd)
-        rc = create_repo_common (mgr, repo_id, repo_name, repo_desc, owner_email,
-                                 magic, random_key, salt, enc_version, error);
-    else
-        rc = create_repo_common (mgr, repo_id, repo_name, repo_desc, owner_email,
-                                 NULL, NULL, NULL, -1, error);
+    if (passwd) {
+        seaf_warning("passwd=%s\n", passwd); // by wrx
+        rc = create_repo_common(mgr, repo_id, repo_name, repo_desc, owner_email,
+                                magic, random_key, salt, enc_version, error);
+    }
+    else {
+        seaf_warning("passwd=NULL? %s\n", passwd); // by wrx
+        rc = create_repo_common(mgr, repo_id, repo_name, repo_desc, owner_email,
+                                NULL, NULL, NULL, -1, error);
+    }
     if (rc < 0)
         goto bad;
 

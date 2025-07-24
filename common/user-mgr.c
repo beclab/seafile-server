@@ -1575,7 +1575,7 @@ ccnet_user_manager_search_ldapusers (CcnetUserManager *manager,
 gint64
 ccnet_user_manager_count_emailusers (CcnetUserManager *manager, const char *source)
 {
-    printf("Someone call count emailusers");    // test wrx
+    printf("Someone call count emailusers\n");    // test wrx
     CcnetDB* db = manager->priv->db;
     char sql[512];
     gint64 ret;
