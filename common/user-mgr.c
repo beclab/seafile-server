@@ -2103,6 +2103,7 @@ ccnet_user_manager_update_emailuser_id (CcnetUserManager *manager,
         goto out;
     }
 
+#ifdef HAVE_LDAP
     g_string_printf (sql, "UPDATE LDAPUsers SET email=? WHERE email=?");
     rc = seaf_db_statement_query (manager->priv->db, sql->str, 2,
                                   "string", new_email,
@@ -2111,6 +2112,7 @@ ccnet_user_manager_update_emailuser_id (CcnetUserManager *manager,
         ccnet_warning ("Failed to update LDAP user\n");
         goto out;
     }
+#endif
     //7.update UserQuota
     g_string_printf (sql, "UPDATE UserQuota SET user=? WHERE user=?");
     rc = seaf_db_statement_query (seaf->db, sql->str, 2,
