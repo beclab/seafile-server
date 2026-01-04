@@ -41,41 +41,4 @@ fi
 
 unset PGPASSWORD
 
-# Start seaf-server in background and get PID
-seaf-server -c ~/dev/conf -d ~/dev/seafile-data -D all -f -l - &
-SEAF_PID=$!
-
-# Health check configuration
-PORT=8082        # Adjust to your actual seaf-server port
-TIMEOUT=30       # Maximum wait time (seconds)
-CHECK_INTERVAL=1 # Check interval (seconds)
-
-# Wait for seaf-server to start with health check
-echo "Waiting for seaf-server to start (timeout: ${TIMEOUT}s)..."
-START_TIME=$(date +%s)
-while [ $(( $(date +%s) - START_TIME )) -lt $TIMEOUT ]; do
-    if nc -zv localhost $PORT 2>&1; then
-        echo "✅ seaf-server started successfully (port $PORT available)"
-        break
-    fi
-    sleep $CHECK_INTERVAL
-done
-
-# Check if startup timed out
-if ! nc -zv localhost $PORT &>/dev/null; then
-    echo "❌ Error: seaf-server failed to start within ${TIMEOUT}s"
-    echo "Current status:"
-    systemctl status seaf-server || true
-    exit 1
-fi
-
-# Execute callback.py after health check
-echo "Executing callback.py..."
-python3 callback.py
-
-# Keep seaf-server running and handle cleanup
-echo "seaf-server running (PID:$SEAF_PID)"
-wait $SEAF_PID
-
-# Cleanup trap
-trap "kill $SEAF_PID 2>/dev/null" EXIT
+seaf-server -c ~/dev/conf -d ~/dev/seafile-data -D all -f -l -
