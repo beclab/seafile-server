@@ -11,11 +11,14 @@ name: Publish PG-Seafile-Server Docker image
 
 on:
   workflow_dispatch:
+    inputs:
+      tags:
+        description: "Release Tags"
+        required: false
   push:
     branches:
       - main
       # - pgsql
-      - merge_test
       - dev
   release:
     types: [published]
@@ -46,6 +49,10 @@ jobs:
         with:
           # images: ${{ secrets.DOCKER_USERNAME }}/seahub_pgserver
           images: beclab/pg_seafile_server
+          tags: |
+            type=raw,value=${{ github.event.inputs.tags }}
+            type=ref,event=tag
+            type=ref,event=branch
 
       - name: Build and push Docker image
         uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671
