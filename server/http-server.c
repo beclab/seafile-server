@@ -899,6 +899,7 @@ get_head_commit_cb (evhtp_request_t *req, void *arg)
     char *sql;
 
     sql = "SELECT 1 FROM Repo WHERE repo_id=?";
+    seaf_debug("Checking repo existence for repo_id: %s\n", repo_id);
     exists = seaf_db_statement_exists (seaf->db, sql, &db_err, 1, "string", repo_id);
     if (!exists) {
         if (db_err) {
@@ -908,11 +909,14 @@ get_head_commit_cb (evhtp_request_t *req, void *arg)
             evhtp_send_reply (req, EVHTP_RES_OK);
             goto out;
         }
+        seaf_debug("Repo %s not found\n", repo_id);
         evhtp_send_reply (req, SEAF_HTTP_RES_REPO_DELETED);
         goto out;
     }
+    seaf_debug("Repo %s exists\n", repo_id);
 
     token_status = validate_token (htp_server, req, repo_id, NULL, FALSE);
+    seaf_debug("Token validation result for repo %s: %d\n", repo_id, token_status);
     if (token_status != EVHTP_RES_OK) {
         evhtp_send_reply (req, token_status);
         goto out;
@@ -921,6 +925,7 @@ get_head_commit_cb (evhtp_request_t *req, void *arg)
     commit_id[0] = 0;
 
     sql = "SELECT commit_id FROM Branch WHERE name='master' AND repo_id=?";
+    seaf_debug("Querying master branch for repo %s\n", repo_id);
     if (seaf_db_statement_foreach_row (seaf->db, sql,
                                        get_branch, commit_id,
                                        1, "string", repo_id) < 0) {
@@ -932,10 +937,17 @@ get_head_commit_cb (evhtp_request_t *req, void *arg)
     }
 
     if (commit_id[0] == 0) {
+        seaf_warning("Commit ID not found for repo %s\n", repo_id);
         evhtp_send_reply (req, SEAF_HTTP_RES_REPO_DELETED);
         goto out;
     }
 
+    size_t len = strlen(commit_id);
+    while (len > 0 && commit_id[len-1] == ' ') {
+        len--;
+    }
+    commit_id[len] = '\0';
+    seaf_debug("Trimmed commit_id: %s\n", commit_id);
     evbuffer_add_printf (req->buffer_out,
                          "{\"is_corrupted\": 0, \"head_commit_id\": \"%s\"}",
                          commit_id);
