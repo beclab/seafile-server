@@ -932,6 +932,10 @@ get_head_commit_cb (evhtp_request_t *req, void *arg)
         goto out;
     }
 
+    if (commit_id[40] == ' ') {
+        commit_id[40] = '\0';
+    }
+
     evbuffer_add_printf (req->buffer_out,
                          "{\"is_corrupted\": 0, \"head_commit_id\": \"%s\"}",
                          commit_id);

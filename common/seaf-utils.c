@@ -332,7 +332,7 @@ load_database_config (SeafileSession *session)
         ret = sqlite_db_start (session);
     }
 #ifdef HAVE_MYSQL
-    else {
+    else if (strcasecmp (type, "mysql") == 0) {
         ret = mysql_db_start (session);
     }
 #endif
@@ -408,10 +408,10 @@ ccnet_init_pgsql_database (SeafileSession *session)
     gboolean use_ssl = FALSE;
     int max_connections = 0;
 
-    host = ccnet_key_file_get_string (session->ccnet_config, "Database", "HOST");
-    user = ccnet_key_file_get_string (session->ccnet_config, "Database", "USER");
-    passwd = ccnet_key_file_get_string (session->ccnet_config, "Database", "PASSWD");
-    db = ccnet_key_file_get_string (session->ccnet_config, "Database", "DB");
+    host = ccnet_key_file_get_string (session->config, "database", "host");
+    user = ccnet_key_file_get_string (session->config, "database", "user");
+    passwd = ccnet_key_file_get_string (session->config, "database", "password");
+    db = ccnet_key_file_get_string (session->config, "database", "ccnet_db_name");
 
     if (!host) {
         seaf_warning ("DB host not set in config.\n");
@@ -431,18 +431,18 @@ ccnet_init_pgsql_database (SeafileSession *session)
     }
 
     GError *error = NULL;
-    port = g_key_file_get_integer (session->ccnet_config, "Database", "PORT", &error);
+    port = g_key_file_get_integer (session->config, "database", "port", &error);
     if (error) {
         g_clear_error (&error);
         port = MYSQL_DEFAULT_PORT;
     }
 
-    unix_socket = ccnet_key_file_get_string (session->ccnet_config,
-                                             "Database", "UNIX_SOCKET");
-    use_ssl = g_key_file_get_boolean (session->ccnet_config, "Database", "USE_SSL", NULL);
+    unix_socket = ccnet_key_file_get_string (session->config,
+                                             "database", "unix_socket");
+    use_ssl = g_key_file_get_boolean (session->config, "database", "use_ssl", NULL);
 
-    max_connections = g_key_file_get_integer (session->ccnet_config,
-                                              "Database", "MAX_CONNECTIONS",
+    max_connections = g_key_file_get_integer (session->config,
+                                              "database", "max_connections",
                                               &error);
     if (error || max_connections < 0) {
         max_connections = DEFAULT_MAX_CONNECTIONS;
@@ -480,7 +480,7 @@ load_ccnet_database_config (SeafileSession *session)
         ret = ccnet_init_sqlite_database (session);
     }
 #ifdef HAVE_MYSQL
-    else {
+    else if (strcasecmp (engine, "mysql") == 0) {
         seaf_message("Use database Mysql\n");
         ret = ccnet_init_mysql_database (session);
     }
