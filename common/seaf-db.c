@@ -545,32 +545,44 @@ seaf_db_foreach_selected_row (SeafDB *db, const char *sql,
 const char *
 seaf_db_row_get_column_text (SeafDBRow *row, guint32 idx)
 {
-	guint32 column_count;
+    guint32 column_count;
+    const char *result;
 
-    /*
-     * 暴力打印 1：在做任何检查之前先打印。
-     * 用 printf 最基础，fflush 强制立刻输出，防止程序崩了缓冲区还没刷。
-     */
+    column_count = db_ops.row_get_column_count(row);
+
+    printf("[FORCE_LOG] ENTER: row=%p, idx=%u, total_cols=%u\n", row, idx, column_count);
+    fflush(stdout);
+
+    result = db_ops.row_get_column_string (row, idx);
+
+    printf("[FORCE_LOG] RAW_RESULT: result_ptr=%p, content=", result);
+    if (result) {
+        printf("%s", result);
+    } else {
+        printf("(null)");
+    }
+    printf("\n");
+    fflush(stdout);
+
+    g_return_val_if_fail (idx < column_count, NULL);
+
+    return result;
+
+	/*guint32 column_count;
+
     printf("[FORCE_LOG] seaf_db_row_get_column_text called: row=%p, idx=%u\n", row, idx);
     fflush(stdout);
 
     column_count = db_ops.row_get_column_count(row);
 
-    /* 原始断言 */
     if (!(idx < column_count)) {
-        /*
-         * 暴力打印 2：断言失败了，再打印一次，确保能看到。
-         * 这里程序马上要返回或者崩了，必须刷一下。
-         */
         printf("[FORCE_LOG] ASSERTION FAILED: idx=%u >= column_count=%u\n", idx, column_count);
         fflush(stdout);
-
-        /* 如果 g_return_val_if_fail 会打印它自己的错误，我们就不管了。
-           如果它不打印，这句就是最后的遗言。 */
         return NULL;
     }
 
-    return db_ops.row_get_column_string (row, idx);
+    return db_ops.row_get_column_string (row, idx);*/
+
     // g_return_val_if_fail (idx < db_ops.row_get_column_count(row), NULL);
 
     // return db_ops.row_get_column_string (row, idx);
