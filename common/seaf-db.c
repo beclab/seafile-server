@@ -15,6 +15,7 @@
 #endif
 #include <sqlite3.h>
 #include <pthread.h>
+#include <stdio.h>
 
 struct DBConnPool {
     GPtrArray *connections;
@@ -544,9 +545,20 @@ seaf_db_foreach_selected_row (SeafDB *db, const char *sql,
 const char *
 seaf_db_row_get_column_text (SeafDBRow *row, guint32 idx)
 {
-    g_return_val_if_fail (idx < db_ops.row_get_column_count(row), NULL);
+	// 先获取列数，假设这个操作本身是安全的
+    guint32 column_count = db_ops.row_get_column_count(row);
+
+    // 打印所有上下文信息
+    fprintf(stderr, "[DEBUG] seaf_db_row_get_column_text: row=%p, idx=%u, column_count=%u\n",
+            row, idx, column_count);
+
+    // 断言检查
+    g_return_val_if_fail (idx < column_count, NULL);
 
     return db_ops.row_get_column_string (row, idx);
+    // g_return_val_if_fail (idx < db_ops.row_get_column_count(row), NULL);
+
+    // return db_ops.row_get_column_string (row, idx);
 }
 
 int
