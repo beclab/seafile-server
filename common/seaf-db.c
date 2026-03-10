@@ -15,7 +15,6 @@
 #endif
 #include <sqlite3.h>
 #include <pthread.h>
-#include <stdio.h>
 
 struct DBConnPool {
     GPtrArray *connections;
@@ -545,47 +544,9 @@ seaf_db_foreach_selected_row (SeafDB *db, const char *sql,
 const char *
 seaf_db_row_get_column_text (SeafDBRow *row, guint32 idx)
 {
-    guint32 column_count;
-    const char *result;
+    g_return_val_if_fail (idx < db_ops.row_get_column_count(row), NULL);
 
-    column_count = db_ops.row_get_column_count(row);
-
-    printf("[FORCE_LOG] ENTER: row=%p, idx=%u, total_cols=%u\n", row, idx, column_count);
-    fflush(stdout);
-
-    result = db_ops.row_get_column_string (row, idx);
-
-    printf("[FORCE_LOG] RAW_RESULT: result_ptr=%p, content=", result);
-    if (result) {
-        printf("%s", result);
-    } else {
-        printf("(null)");
-    }
-    printf("\n");
-    fflush(stdout);
-
-    g_return_val_if_fail (idx < column_count, NULL);
-
-    return result;
-
-	/*guint32 column_count;
-
-    printf("[FORCE_LOG] seaf_db_row_get_column_text called: row=%p, idx=%u\n", row, idx);
-    fflush(stdout);
-
-    column_count = db_ops.row_get_column_count(row);
-
-    if (!(idx < column_count)) {
-        printf("[FORCE_LOG] ASSERTION FAILED: idx=%u >= column_count=%u\n", idx, column_count);
-        fflush(stdout);
-        return NULL;
-    }
-
-    return db_ops.row_get_column_string (row, idx);*/
-
-    // g_return_val_if_fail (idx < db_ops.row_get_column_count(row), NULL);
-
-    // return db_ops.row_get_column_string (row, idx);
+    return db_ops.row_get_column_string (row, idx);
 }
 
 int
