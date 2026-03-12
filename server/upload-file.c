@@ -2065,13 +2065,13 @@ recv_form_field (RecvFSM *fsm, gboolean *no_line)
     line = evbuffer_readln (fsm->line, &len, EVBUFFER_EOL_CRLF_STRICT);
     if (line != NULL) {
         if (strstr (line, fsm->boundary) != NULL) {
-            seaf_debug ("[upload] form field ends.\n");
+            // seaf_debug ("[upload] form field ends.\n");
 
             g_free (fsm->input_name);
             fsm->input_name = NULL;
             fsm->state = RECV_HEADERS;
         } else {
-            seaf_debug ("[upload] form field is %s.\n", line);
+            // seaf_debug ("[upload] form field is %s.\n", line);
 
             norm_line = normalize_utf8_path (line);
             if (norm_line) {
@@ -2089,7 +2089,7 @@ recv_form_field (RecvFSM *fsm, gboolean *no_line)
                                                                    strlen(fsm->boundary),
                                                                    NULL);
             if (search_boundary.pos != -1) {
-                seaf_debug ("[upload] form field ends.\n");
+                // seaf_debug ("[upload] form field ends.\n");
                 evbuffer_drain (fsm->line, size);
                 g_free (fsm->input_name);
                 fsm->input_name = NULL;
@@ -2156,7 +2156,7 @@ recv_file_data (RecvFSM *fsm, gboolean *no_line)
             evbuffer_remove (fsm->line, buf, size);
             // strstr need a '\0'
             if (strstr(buf, fsm->boundary) != NULL) {
-                seaf_debug ("[upload] file data ends.\n");
+                // seaf_debug ("[upload] file data ends.\n");
                 evhtp_res res = add_uploaded_file (fsm);
                 if (res != EVHTP_RES_OK) {
                     g_free(buf);
@@ -2166,7 +2166,7 @@ recv_file_data (RecvFSM *fsm, gboolean *no_line)
                 fsm->input_name = NULL;
                 fsm->state = RECV_HEADERS;
             } else {
-                seaf_debug ("[upload] recv file data %d bytes.\n", size);
+                // seaf_debug ("[upload] recv file data %d bytes.\n", size);
                 if (fsm->recved_crlf) {
                     if (writen (fsm->fd, "\r\n", 2) < 0) {
                         seaf_warning ("[upload] Failed to write temp file: %s.\n",
@@ -2186,7 +2186,7 @@ recv_file_data (RecvFSM *fsm, gboolean *no_line)
         }
         *no_line = TRUE;
     } else if (strstr (line, fsm->boundary) != NULL) {
-        seaf_debug ("[upload] file data ends.\n");
+        // seaf_debug ("[upload] file data ends.\n");
 
         evhtp_res res = add_uploaded_file (fsm);
         if (res != EVHTP_RES_OK) {
@@ -2199,7 +2199,7 @@ recv_file_data (RecvFSM *fsm, gboolean *no_line)
         fsm->state = RECV_HEADERS;
         free (line);
     } else {
-        seaf_debug ("[upload] recv file data %d bytes.\n", len + 2);
+        // seaf_debug ("[upload] recv file data %d bytes.\n", len + 2);
         if (fsm->recved_crlf) {
             if (writen (fsm->fd, "\r\n", 2) < 0) {
                 seaf_warning ("[upload] Failed to write temp file: %s.\n",
@@ -2267,7 +2267,7 @@ upload_read_cb (evhtp_request_t *req, evbuf_t *buf, void *arg)
         case RECV_INIT:
             line = evbuffer_readln (fsm->line, &len, EVBUFFER_EOL_CRLF_STRICT);
             if (line != NULL) {
-                seaf_debug ("[upload] boundary line: %s.\n", line);
+                // seaf_debug ("[upload] boundary line: %s.\n", line);
                 if (!strstr (line, fsm->boundary)) {
                     seaf_debug ("[upload] no boundary found in the first line.\n");
                     free (line);
@@ -2284,7 +2284,7 @@ upload_read_cb (evhtp_request_t *req, evbuf_t *buf, void *arg)
         case RECV_HEADERS:
             line = evbuffer_readln (fsm->line, &len, EVBUFFER_EOL_CRLF_STRICT);
             if (line != NULL) {
-                seaf_debug ("[upload] mime header line: %s.\n", line);
+                // seaf_debug ("[upload] mime header line: %s.\n", line);
                 if (len == 0) {
                     /* Read an blank line, headers end. */
                     free (line);
@@ -2301,7 +2301,7 @@ upload_read_cb (evhtp_request_t *req, evbuf_t *buf, void *arg)
                             goto out;
                         }
                     }
-                    seaf_debug ("[upload] Start to recv %s.\n", fsm->input_name);
+                    // seaf_debug ("[upload] Start to recv %s.\n", fsm->input_name);
                     fsm->state = RECV_CONTENT;
                 } else if (parse_mime_header (req, line, fsm) < 0) {
                     free (line);
