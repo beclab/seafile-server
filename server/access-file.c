@@ -1215,7 +1215,7 @@ access_zip_cb (evhtp_request_t *req, void *arg)
 
     g_object_get (info, "obj_id", &info_str, NULL);
     if (!info_str) {
-        seaf_warning ("Invalid obj_id for token: %s.\n", token);
+        seaf_warning ("Invalid obj_id for token: %.10s.\n", token);
         error = "Internal server error\n";
         error_code = EVHTP_RES_SERVERR;
         goto out;
@@ -1223,7 +1223,7 @@ access_zip_cb (evhtp_request_t *req, void *arg)
 
     info_obj = json_loadb (info_str, strlen(info_str), 0, &jerror);
     if (!info_obj) {
-        seaf_warning ("Failed to parse obj_id field: %s for token: %s.\n", jerror.text, token);
+        seaf_warning ("Failed to parse obj_id field: %s for token: %.10s.\n", jerror.text, token);
         error = "Internal server error\n";
         error_code = EVHTP_RES_SERVERR;
         goto out;
@@ -1239,7 +1239,7 @@ access_zip_cb (evhtp_request_t *req, void *arg)
         strftime(date_str, sizeof(date_str), "%Y-%m-%d", localtime(&now));
         filename = g_strconcat (MULTI_DOWNLOAD_FILE_PREFIX, date_str, NULL);
     } else {
-        seaf_warning ("No dir_name or file_list in obj_id for token: %s.\n", token);
+        seaf_warning ("No dir_name or file_list in obj_id for token: %.10s.\n", token);
         error = "Internal server error\n";
         error_code = EVHTP_RES_SERVERR;
         goto out;
@@ -1248,7 +1248,7 @@ access_zip_cb (evhtp_request_t *req, void *arg)
     zip_file_path = zip_download_mgr_get_zip_file_path (seaf->zip_download_mgr, token);
     if (!zip_file_path) {
         g_object_get (info, "repo_id", &repo_id, NULL);
-        seaf_warning ("Failed to get zip file path for %s in repo %.8s, token:[%s].\n",
+        seaf_warning ("Failed to get zip file path for %s in repo %.8s, token:[%.10s].\n",
                       filename, repo_id, token);
         error = "Internal server error\n";
         error_code = EVHTP_RES_SERVERR;
@@ -1266,7 +1266,7 @@ access_zip_cb (evhtp_request_t *req, void *arg)
     g_object_get (info, "op", &token_type, NULL);
     int ret = start_download_zip_file (req, token, filename, zip_file_path, repo_id, user, token_type);
     if (ret < 0) {
-        seaf_warning ("Failed to start download zip file: %s for token: %s", filename, token);
+        seaf_warning ("Failed to start download zip file: %s for token: %.10s", filename, token);
         error = "Internal server error\n";
         error_code = EVHTP_RES_SERVERR;
     }
@@ -1795,7 +1795,7 @@ access_blks_cb(evhtp_request_t *req, void *arg)
 
     if (strcmp(operation, "downloadblks") == 0) {
         if (do_block(req, repo, user, id, blkid) < 0) {
-            seaf_warning ("Failed to download blocks for token: %s\n", token);
+            seaf_warning ("Failed to download blocks for token: %.10s\n", token);
             error_code = EVHTP_RES_SERVERR;
             goto on_error;
         }
@@ -1894,7 +1894,7 @@ access_link_cb(evhtp_request_t *req, void *arg)
     if (!file_path) {
         error_str = "Internal server error\n";
         error_code = EVHTP_RES_SERVERR;
-        seaf_warning ("Failed to get file_path by token %s\n", token);
+        seaf_warning ("Failed to get file_path by token %.10s\n", token);
         goto out;
     }
     share_type = seafile_share_link_info_get_share_type (info);
