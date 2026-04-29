@@ -230,7 +230,11 @@ func (client *Client) writeMessages() {
 				return
 			}
 			m, _ := msg.(*Message)
-			log.Debugf("send %s event to client %s(%d): %s", m.Type, client.User, client.ID, string(m.Content))
+			content := string(m.Content)
+			if len(content) > 256 {
+				content = content[:256] + "...(truncated)"
+			}
+			log.Debugf("send %s event to client %s(%d): %s", m.Type, client.User, client.ID, content)
 		case <-client.ConnCloser.HasBeenClosed():
 			return
 		}

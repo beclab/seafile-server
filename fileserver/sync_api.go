@@ -244,7 +244,7 @@ func permissionCheckCB(rsp http.ResponseWriter, r *http.Request) *appError {
 	ip := getClientIPAddr(r)
 	if ip == "" {
 		token := r.Header.Get("Seafile-Repo-Token")
-		err := fmt.Errorf("%s failed to get client ip", token)
+		err := fmt.Errorf("failed to get client ip")
 		return &appError{err, "", http.StatusInternalServerError}
 	}
 
@@ -255,7 +255,7 @@ func permissionCheckCB(rsp http.ResponseWriter, r *http.Request) *appError {
 		token := r.Header.Get("Seafile-Repo-Token")
 		exists, err := repomgr.TokenPeerInfoExists(token)
 		if err != nil {
-			err := fmt.Errorf("Failed to check whether token %s peer info exist: %v", token, err)
+			err := fmt.Errorf("Failed to check whether token peer info exist: %v", err)
 			return &appError{err, "", http.StatusInternalServerError}
 		}
 		if !exists {
@@ -1326,13 +1326,13 @@ func validateToken(r *http.Request, repoID string, skipCache bool) (string, *app
 
 	email, err := repomgr.GetEmailByToken(repoID, token)
 	if err != nil {
-		log.Errorf("Failed to get email by token %s: %v", token, err)
+		log.Errorf("Failed to get email by token: %v", err)
 		tokenCache.Delete(token)
 		return email, &appError{err, "", http.StatusInternalServerError}
 	}
 	if email == "" {
 		tokenCache.Delete(token)
-		msg := fmt.Sprintf("Failed to get email by token %s", token)
+		msg := "Invalid or expired repo token"
 		return email, &appError{nil, msg, http.StatusForbidden}
 	}
 

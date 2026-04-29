@@ -216,7 +216,7 @@ index_blocks_mgr_query_progress (IndexBlksMgr *mgr,
     pthread_mutex_unlock (&priv->progress_lock);
 
     if (!progress) {
-        seaf_warning ("Index progress not found for token %s\n", token);
+        seaf_warning ("Index progress not found for token %.10s\n", token);
         g_set_error (error, SEAFILE_DOMAIN, SEAF_ERR_GENERAL,
                      "Index progress not found");
         return NULL;

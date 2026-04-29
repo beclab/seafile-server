@@ -773,7 +773,7 @@ get_check_permission_cb (evhtp_request_t *req, void *arg)
     if (!ip) {
         evhtp_send_reply (req, EVHTP_RES_SERVERR);
         token = evhtp_kv_find (req->headers_in, "Seafile-Repo-Token");
-        seaf_warning ("[%s] Failed to get client ip.\n", token);
+        seaf_warning ("[%.10s] Failed to get client ip.\n", token);
         goto out;
     }
 

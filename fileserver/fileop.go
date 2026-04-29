@@ -3896,7 +3896,7 @@ func accessLinkCB(rsp http.ResponseWriter, r *http.Request) *appError {
 
 	if info.FilePath == "" {
 		msg := "Internal server error\n"
-		err := fmt.Errorf("failed to get file_path by token %s", token)
+		err := fmt.Errorf("failed to get file_path by token")
 		return &appError{err, msg, http.StatusInternalServerError}
 	}
 	if info.ShareType != "f" {

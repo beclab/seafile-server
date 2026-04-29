@@ -152,7 +152,7 @@ seaf_cfg_manager_get_config_int (SeafCfgManager *mgr, const char *group, const c
         ret = strtol (value, &invalid, 10);
         if (*invalid != '\0') {
             ret = -1;
-            seaf_warning ("Value of config [%s:%s] is invalid: [%s]\n", group, key, value);
+            seaf_warning ("Value of config [%s:%s] is invalid.\n", group, key);
         }
         g_free (value);
     }
@@ -177,7 +177,7 @@ seaf_cfg_manager_get_config_int64 (SeafCfgManager *mgr, const char *group, const
     } else {
         ret = strtoll (value, &invalid, 10);
         if (*invalid != '\0') {
-            seaf_warning ("Value of config [%s:%s] is invalid: [%s]\n", group, key, value);
+            seaf_warning ("Value of config [%s:%s] is invalid.\n", group, key);
             ret = -1;
         }
         g_free (value);

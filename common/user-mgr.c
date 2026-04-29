@@ -863,7 +863,7 @@ validate_passwd_pbkdf2_sha256 (const char *passwd, const char *db_passwd)
     if (!tokens || g_strv_length (tokens) != 4) {
         if (tokens)
             g_strfreev (tokens);
-        ccnet_warning ("Invalide db passwd format %s.\n", db_passwd);
+        ccnet_warning ("Invalid db passwd format.\n");
         return FALSE;
     }
 
