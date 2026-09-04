@@ -2290,6 +2290,9 @@ upload_read_cb (evhtp_request_t *req, evbuf_t *buf, void *arg)
                     free (line);
                     // Each part MUST contain a Content-Disposition header field
                     if (!fsm->input_name) {
+                        /* Leftover blank line after a finished file: "--boundary--" flush split from its CRLF. */
+                        if (fsm->filenames || fsm->files)
+                            break;
                         res = EVHTP_RES_BADREQ;
                         goto out;
                     }
